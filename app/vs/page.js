@@ -15,16 +15,17 @@ export default function VsPage() {
     createMatch, submitGuess, stopMatch,
   } = useMatchEngine();
 
-  const playSound = useSoundFX();
+  const sfx = useSoundFX();
   const prevSoundRef = useRef(null);
 
   // Play sound events
   useEffect(() => {
     if (soundEvent && soundEvent !== prevSoundRef.current) {
       prevSoundRef.current = soundEvent;
-      playSound(soundEvent.type);
+      const fn = sfx[soundEvent.type];
+      if (fn) fn();
     }
-  }, [soundEvent, playSound]);
+  }, [soundEvent, sfx]);
 
   // Timer color
   const timerColor = timer > 30 ? "var(--green)"
