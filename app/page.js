@@ -34,6 +34,10 @@ export default function Home() {
           <span style={styles.subtitle}>Watch AI Play</span>
         </div>
 
+        <div style={styles.modeSwitch}>
+          <a href="/vs" style={styles.vsLink}>⚔️ Player vs AI</a>
+        </div>
+
         <div style={styles.headerCenter}>
           <span style={styles.techBadge}>Qwen3-0.6B GRPO</span>
           <span style={styles.techBadge}>MDP Banking</span>
@@ -203,5 +207,22 @@ const styles = {
   panelRight: {
     minHeight: 0,
     overflow: "hidden",
+  },
+  modeSwitch: {
+    display: "flex",
+    alignItems: "center",
+  },
+  vsLink: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "13px",
+    fontWeight: 700,
+    color: "#f43f5e",
+    textDecoration: "none",
+    padding: "8px 16px",
+    border: "1px solid rgba(244, 63, 94, 0.3)",
+    borderRadius: "var(--radius-md)",
+    background: "rgba(244, 63, 94, 0.08)",
+    letterSpacing: "1px",
+    transition: "all 0.2s",
   },
 };
