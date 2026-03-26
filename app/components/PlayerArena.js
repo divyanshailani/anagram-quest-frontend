@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from "react";
 export default function PlayerArena({ onSubmitGuess, found, wrong, score, letters, disabled }) {
   const [input, setInput] = useState("");
   const [feedback, setFeedback] = useState(null); // { type, message }
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const pendingWordsRef = useRef(new Set());
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -17,20 +17,21 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting || disabled) return;
+    if (disabled) return;
 
     // Read directly from the input DOM node to avoid missing the last keystroke
     // when Enter is pressed very quickly after typing.
     const liveValue = inputRef.current?.value ?? input;
     const word = liveValue.trim().toUpperCase();
-    if (!word) return;
+    if (!word || pendingWordsRef.current.has(word)) return;
 
-    setIsSubmitting(true);
+    // Clear immediately so rapid guess chains don't feel blocked by network RTT.
+    setInput("");
+    if (inputRef.current) inputRef.current.focus();
+    pendingWordsRef.current.add(word);
 
     try {
       const result = await onSubmitGuess(word);
-      setInput("");
-
       if (result) {
         if (result.valid) {
           setFeedback({ type: "correct", message: `+${result.reward}` });
@@ -42,7 +43,7 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
         setTimeout(() => setFeedback(null), 1500);
       }
     } finally {
-      setIsSubmitting(false);
+      pendingWordsRef.current.delete(word);
     }
   };
 
@@ -72,7 +73,7 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
         />
         <button
           type="submit"
-          disabled={disabled || isSubmitting || !input.trim()}
+          disabled={disabled || !input.trim()}
           style={styles.submitBtn}
         >
           →

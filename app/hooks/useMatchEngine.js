@@ -40,6 +40,7 @@ export function useMatchEngine() {
   const statusRef = useRef("idle");
   const timerRef = useRef(null);
   const esRef = useRef(null);
+  const aiReconnectTimerRef = useRef(null);
   const isAdvancingRef = useRef(false);
 
   // Keep refs in sync
@@ -81,6 +82,10 @@ export function useMatchEngine() {
     if (esRef.current) {
       esRef.current.close();
       esRef.current = null;
+    }
+    if (aiReconnectTimerRef.current) {
+      clearTimeout(aiReconnectTimerRef.current);
+      aiReconnectTimerRef.current = null;
     }
 
     // Quick transition on early completion; longer pause when timer expires.
@@ -138,7 +143,11 @@ export function useMatchEngine() {
     setHumanFound([]);
     setHumanWrong([]);
     setAiFound([]);
-    setAiThinking([]);
+    setAiThinking([{
+      text: "[System] Syncing AI stream...",
+      phase: "boot",
+      ts: Date.now(),
+    }]);
     setTimer(LEVEL_DURATION);
     setLevelEndMeta(null);
     isAdvancingRef.current = false;
@@ -150,12 +159,26 @@ export function useMatchEngine() {
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Connect AI drip-feed SSE (pass matchId explicitly) ───
-  const connectAIStreamWithId = useCallback((id) => {
+  const connectAIStreamWithId = useCallback((id, attempt = 0) => {
+    if (aiReconnectTimerRef.current) {
+      clearTimeout(aiReconnectTimerRef.current);
+      aiReconnectTimerRef.current = null;
+    }
     if (esRef.current) esRef.current.close();
 
     const url = `${GAME_SERVER}/match/${id}/ai-stream`;
     const es = new EventSource(url);
     esRef.current = es;
+
+    es.onopen = () => {
+      if (attempt > 0) {
+        setAiThinking((prev) => [...prev, {
+          text: "[NET] AI stream reconnected.",
+          phase: "net",
+          ts: Date.now(),
+        }]);
+      }
+    };
 
     es.addEventListener("ai_thinking", (e) => {
       try {
@@ -170,6 +193,12 @@ export function useMatchEngine() {
         if (data.correct) {
           setAiFound((prev) => [...prev, data]);
           setAiScore(data.ai_score);
+        } else {
+          setAiThinking((prev) => [...prev, {
+            text: "[LLM Solver] Rejecting non-valid candidate...",
+            phase: "prune",
+            ts: Date.now(),
+          }]);
         }
       } catch {}
     });
@@ -191,13 +220,34 @@ export function useMatchEngine() {
     });
 
     es.onerror = () => {
-      // Don't crash — AI stream may end naturally
+      // Manual reconnect gives us predictable recovery + UI signal.
+      if (statusRef.current !== "playing") return;
+      if (esRef.current !== es) return;
+
+      es.close();
+      esRef.current = null;
+      const retryMs = Math.min(700 * (2 ** attempt), 3500);
+      setAiThinking((prev) => [...prev, {
+        text: `[NET] AI stream dropped. Reconnecting in ${Math.round(retryMs / 1000)}s...`,
+        phase: "net",
+        ts: Date.now(),
+      }]);
+
+      aiReconnectTimerRef.current = setTimeout(() => {
+        if (statusRef.current === "playing") {
+          connectAIStreamWithId(id, attempt + 1);
+        }
+      }, retryMs);
     };
   }, []);
 
   // ─── Create match ───
   const createMatch = useCallback(async () => {
     isAdvancingRef.current = false;
+    if (aiReconnectTimerRef.current) {
+      clearTimeout(aiReconnectTimerRef.current);
+      aiReconnectTimerRef.current = null;
+    }
     setLevelEndMeta(null);
     setStatus("playing");
     setHumanScore(0);
@@ -269,6 +319,10 @@ export function useMatchEngine() {
     if (esRef.current) {
       esRef.current.close();
       esRef.current = null;
+    }
+    if (aiReconnectTimerRef.current) {
+      clearTimeout(aiReconnectTimerRef.current);
+      aiReconnectTimerRef.current = null;
     }
     clearInterval(timerRef.current);
     isAdvancingRef.current = false;
