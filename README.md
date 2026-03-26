@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Anagram Quest Frontend
 
-## Getting Started
+Premium frontend for **Anagram Quest** built with Next.js App Router.
 
-First, run the development server:
+This app ships two core experiences:
+
+1. **Watch AI Play** — real-time AI solving stream with terminal-style telemetry
+2. **Player vs AI** — competitive mode with timer, banking mechanics, and anti-cheat masking
+
+## Live Demo
+
+- Main app: [anagram-quest-frontend.vercel.app](https://anagram-quest-frontend.vercel.app)
+- PvAI mode: [anagram-quest-frontend.vercel.app/vs](https://anagram-quest-frontend.vercel.app/vs)
+
+## Project Family
+
+- Master repo (architecture + full journey): [divyanshailani/anagram-quest](https://github.com/divyanshailani/anagram-quest)
+- Backend: [divyanshailani/anagram-quest-server](https://github.com/divyanshailani/anagram-quest-server)
+- OpenEnv foundation: [divyanshailani/anagram-quest-openenv](https://github.com/divyanshailani/anagram-quest-openenv)
+
+## Features
+
+- Real-time SSE integration for AI events
+- Premium dark UI with game-oriented motion and visual hierarchy
+- Player-vs-AI split arena with level race flow
+- Sound FX integration with event-driven hook architecture
+- Auto-advance logic and end-of-level overlays
+- Banking panel (boost/recover actions, activity feed)
+- Reconnect and resilience handling for unstable networks
+- Rematch reliability with explicit `starting` lifecycle state
+
+## Tech Stack
+
+- Next.js (App Router)
+- React hooks + client-side state orchestration
+- Native fetch + EventSource (SSE)
+- Howler.js (sound)
+- CSS (custom theme variables + component-level styles)
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.production` (or `.env.local`) with:
 
-## Learn More
+```bash
+NEXT_PUBLIC_GAME_SERVER=https://anagram-quest.mooo.com
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Build and Quality
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Directory Highlights
 
-## Deploy on Vercel
+```text
+app/
+  components/      # UI components (arena, bank panel, game board)
+  hooks/           # useMatchEngine, useGameStream, useSoundFX
+  vs/              # Player vs AI route
+  page.js          # Landing page
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Frontend is optimized for the currently deployed backend model where match state is managed server-side and AI updates are streamed over SSE.
