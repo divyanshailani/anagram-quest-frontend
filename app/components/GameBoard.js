@@ -1,11 +1,74 @@
 "use client";
 
 /**
- * GameBoard — Central panel showing letters, guesses, and level progress
+ * GameBoard — Central panel showing letters, guesses, level progress,
+ * and a Level Complete overlay with countdown between levels.
  */
-export default function GameBoard({ currentLevel, guesses, levels, status }) {
+export default function GameBoard({ currentLevel, guesses, levels, status, levelPause, onSkipPause }) {
   return (
     <div style={styles.container}>
+      {/* Level Complete Overlay */}
+      {levelPause?.active && levelPause.levelData && (
+        <div style={styles.overlay}>
+          <div style={styles.overlayCard}>
+            {/* Countdown ring */}
+            <div style={styles.countdownRing}>
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="35" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+                <circle
+                  cx="40" cy="40" r="35"
+                  fill="none"
+                  stroke="var(--cyan)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 35}`}
+                  strokeDashoffset={`${2 * Math.PI * 35 * (1 - levelPause.countdown / 10)}`}
+                  transform="rotate(-90 40 40)"
+                  style={{ transition: "stroke-dashoffset 1s linear" }}
+                />
+              </svg>
+              <span style={styles.countdownNum}>{levelPause.countdown}</span>
+            </div>
+
+            <div style={styles.overlayTitle}>
+              Level {levelPause.levelData.level} Complete
+            </div>
+
+            {/* Found words */}
+            {levelPause.levelData.found?.length > 0 && (
+              <div style={styles.wordSection}>
+                <div style={styles.wordLabel}>✅ Found</div>
+                <div style={styles.wordList}>
+                  {levelPause.levelData.found.map((w, i) => (
+                    <span key={i} style={styles.wordTagGreen}>{w}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Missed words */}
+            {levelPause.levelData.missed?.length > 0 && (
+              <div style={styles.wordSection}>
+                <div style={styles.wordLabel}>❌ Missed</div>
+                <div style={styles.wordList}>
+                  {levelPause.levelData.missed.map((w, i) => (
+                    <span key={i} style={styles.wordTagRed}>{w}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {levelPause.levelData.all_found && (
+              <div style={styles.perfectBadge}>⭐ Perfect Level!</div>
+            )}
+
+            <button onClick={onSkipPause} style={styles.skipBtn}>
+              Skip →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Level indicator */}
       {currentLevel && (
         <div className="animate-in" style={styles.levelBadge}>
@@ -107,6 +170,7 @@ export default function GameBoard({ currentLevel, guesses, levels, status }) {
 
 const styles = {
   container: {
+    position: "relative",
     background: "var(--bg-card)",
     border: "1px solid var(--border)",
     borderRadius: "var(--radius-lg)",
@@ -118,6 +182,112 @@ const styles = {
     height: "100%",
     overflow: "auto",
   },
+  // ─── Overlay ───
+  overlay: {
+    position: "absolute",
+    inset: 0,
+    zIndex: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(10, 14, 26, 0.85)",
+    backdropFilter: "blur(8px)",
+    borderRadius: "var(--radius-lg)",
+    animation: "fadeIn 0.3s ease-out",
+  },
+  overlayCard: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "16px",
+    padding: "32px 40px",
+    background: "rgba(255, 255, 255, 0.03)",
+    border: "1px solid var(--border-glow)",
+    borderRadius: "var(--radius-lg)",
+    maxWidth: "400px",
+    width: "90%",
+  },
+  countdownRing: {
+    position: "relative",
+    width: "80px",
+    height: "80px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countdownNum: {
+    position: "absolute",
+    fontFamily: "var(--font-mono)",
+    fontSize: "28px",
+    fontWeight: 700,
+    color: "var(--cyan)",
+    textShadow: "0 0 20px var(--cyan-glow)",
+  },
+  overlayTitle: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "18px",
+    fontWeight: 700,
+    color: "var(--text-primary)",
+    letterSpacing: "2px",
+    textTransform: "uppercase",
+  },
+  wordSection: {
+    width: "100%",
+  },
+  wordLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "11px",
+    color: "var(--text-dim)",
+    marginBottom: "6px",
+    letterSpacing: "1px",
+  },
+  wordList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+  },
+  wordTagGreen: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "12px",
+    padding: "3px 10px",
+    borderRadius: "4px",
+    background: "rgba(52, 211, 153, 0.12)",
+    border: "1px solid rgba(52, 211, 153, 0.3)",
+    color: "var(--green)",
+  },
+  wordTagRed: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "12px",
+    padding: "3px 10px",
+    borderRadius: "4px",
+    background: "rgba(248, 113, 113, 0.12)",
+    border: "1px solid rgba(248, 113, 113, 0.3)",
+    color: "var(--red)",
+  },
+  perfectBadge: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "14px",
+    color: "var(--amber)",
+    padding: "6px 16px",
+    borderRadius: "20px",
+    background: "rgba(251, 191, 36, 0.1)",
+    border: "1px solid rgba(251, 191, 36, 0.3)",
+    letterSpacing: "1px",
+  },
+  skipBtn: {
+    marginTop: "8px",
+    padding: "8px 24px",
+    background: "transparent",
+    color: "var(--text-dim)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-md)",
+    fontFamily: "var(--font-mono)",
+    fontSize: "12px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    letterSpacing: "1px",
+  },
+  // ─── Normal layout ───
   levelBadge: {
     display: "flex",
     alignItems: "center",

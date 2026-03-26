@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useGameStream } from "./hooks/useGameStream";
+import { useSoundFX } from "./hooks/useSoundFX";
 import ThinkingBox from "./components/ThinkingBox";
 import GameBoard from "./components/GameBoard";
 import BankPanel from "./components/BankPanel";
@@ -9,8 +11,17 @@ export default function Home() {
   const {
     status, thinking, guesses, levels,
     currentLevel, score, bank, gameResult, bankDecisions,
-    startGame, stopGame,
+    levelPause, soundEvent, startGame, stopGame, skipPause,
   } = useGameStream();
+
+  const sfx = useSoundFX();
+
+  // React to sound events from the game stream
+  useEffect(() => {
+    if (!soundEvent) return;
+    const fn = sfx[soundEvent.type];
+    if (fn) fn();
+  }, [soundEvent, sfx]);
 
   return (
     <main style={styles.main}>
@@ -58,6 +69,8 @@ export default function Home() {
             guesses={guesses}
             levels={levels}
             status={status}
+            levelPause={levelPause}
+            onSkipPause={skipPause}
           />
         </div>
 
