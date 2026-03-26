@@ -13,9 +13,10 @@ const LEVEL_DURATION = 60; // seconds per level
  */
 export function useMatchEngine() {
   const [matchId, setMatchId] = useState(null);
-  const [status, setStatus] = useState("idle"); // idle | playing | level_end | finished | error
+  const [status, setStatus] = useState("idle"); // idle | starting | playing | level_end | finished | error
   const [currentLevel, setCurrentLevel] = useState(null);
   const [timer, setTimer] = useState(LEVEL_DURATION);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Human state
   const [humanScore, setHumanScore] = useState(0);
@@ -46,6 +47,7 @@ export function useMatchEngine() {
   const esRef = useRef(null);
   const aiReconnectTimerRef = useRef(null);
   const isAdvancingRef = useRef(false);
+  const createInFlightRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { matchIdRef.current = matchId; }, [matchId]);
@@ -268,30 +270,65 @@ export function useMatchEngine() {
 
   // ─── Create match ───
   const createMatch = useCallback(async () => {
+    if (createInFlightRef.current) return;
+    createInFlightRef.current = true;
+    setIsCreating(true);
+
     isAdvancingRef.current = false;
+    clearInterval(timerRef.current);
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
     if (aiReconnectTimerRef.current) {
       clearTimeout(aiReconnectTimerRef.current);
       aiReconnectTimerRef.current = null;
     }
     setLevelEndMeta(null);
-    setStatus("playing");
+    setStatus("starting");
+    setCurrentLevel(null);
+    setTimer(LEVEL_DURATION);
     setHumanScore(0);
     setHumanBank(0);
+    setHumanFound([]);
+    setHumanWrong([]);
     setAiScore(0);
     setAiBank(0);
+    setAiFound([]);
+    setAiThinking([]);
     setBankFeed([]);
     setBankBusy(false);
     setLevelResults([]);
     setMatchResult(null);
+    setMatchId(null);
+    matchIdRef.current = null;
     setSoundEvent({ type: "gameStart", ts: Date.now() });
 
     try {
-      const resp = await fetch(`${GAME_SERVER}/match/create`, { method: "POST" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      let data = null;
+      let lastErr = null;
 
-      if (!data.match_id || !data.letters) {
-        throw new Error("Invalid match response");
+      // One lightweight retry smooths transient network blips on rematch/start.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const resp = await fetch(`${GAME_SERVER}/match/create`, { method: "POST" });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const payload = await resp.json();
+          if (!payload.match_id || !payload.letters) {
+            throw new Error("Invalid match response");
+          }
+          data = payload;
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 350));
+          }
+        }
+      }
+
+      if (!data) {
+        throw lastErr ?? new Error("Failed to create match");
       }
 
       // Store matchId in both state and ref
@@ -304,6 +341,9 @@ export function useMatchEngine() {
     } catch (err) {
       console.error("createMatch error:", err);
       setStatus("error");
+    } finally {
+      setIsCreating(false);
+      createInFlightRef.current = false;
     }
   }, [startLevelWithId]);
 
@@ -423,7 +463,14 @@ export function useMatchEngine() {
     }
     clearInterval(timerRef.current);
     isAdvancingRef.current = false;
+    createInFlightRef.current = false;
     setStatus("idle");
+    setIsCreating(false);
+    setCurrentLevel(null);
+    setHumanFound([]);
+    setHumanWrong([]);
+    setAiFound([]);
+    setAiThinking([]);
     setBankBusy(false);
     setHumanBank(0);
     setAiBank(0);
@@ -433,7 +480,7 @@ export function useMatchEngine() {
   }, []);
 
   return {
-    matchId, status, currentLevel, timer,
+    matchId, status, currentLevel, timer, isCreating,
     humanScore, humanBank, humanFound, humanWrong,
     aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent,

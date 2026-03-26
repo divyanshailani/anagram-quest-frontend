@@ -10,7 +10,7 @@ import MatchBankPanel from "../components/MatchBankPanel";
 
 export default function VsPage() {
   const {
-    matchId, status, currentLevel, timer,
+    matchId, status, currentLevel, timer, isCreating,
     humanScore, humanBank, humanFound, humanWrong,
     aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent, levelEndMeta,
@@ -66,6 +66,18 @@ export default function VsPage() {
           </p>
           <button onClick={createMatch} style={styles.startBtn}>
             ⚔️ Start Match
+          </button>
+        </div>
+      )}
+
+      {status === "starting" && (
+        <div style={styles.startScreen}>
+          <h2 style={styles.heroText}>Initializing Arena...</h2>
+          <p style={styles.subText}>
+            Connecting to game server and syncing AI stream.
+          </p>
+          <button disabled style={{ ...styles.startBtn, ...styles.disabledBtn }}>
+            Connecting...
           </button>
         </div>
       )}
@@ -216,8 +228,12 @@ export default function VsPage() {
             </div>
 
             <div style={styles.overlayButtons}>
-              <button onClick={createMatch} style={styles.startBtn}>
-                ⚔️ Rematch
+              <button
+                onClick={createMatch}
+                style={isCreating ? { ...styles.startBtn, ...styles.disabledBtn } : styles.startBtn}
+                disabled={isCreating}
+              >
+                {isCreating ? "Connecting..." : "⚔️ Rematch"}
               </button>
               <Link href="/" style={styles.backBtn}>← Home</Link>
             </div>
@@ -228,7 +244,13 @@ export default function VsPage() {
       {status === "error" && (
         <div style={styles.startScreen}>
           <h2 style={{ ...styles.heroText, color: "var(--red)" }}>Connection Error</h2>
-          <button onClick={createMatch} style={styles.startBtn}>Retry</button>
+          <button
+            onClick={createMatch}
+            style={isCreating ? { ...styles.startBtn, ...styles.disabledBtn } : styles.startBtn}
+            disabled={isCreating}
+          >
+            {isCreating ? "Retrying..." : "Retry"}
+          </button>
         </div>
       )}
     </div>
@@ -337,6 +359,11 @@ const styles = {
     borderRadius: "var(--radius-md)",
     cursor: "pointer",
     letterSpacing: "1px",
+  },
+  disabledBtn: {
+    opacity: 0.65,
+    cursor: "not-allowed",
+    filter: "grayscale(0.15)",
   },
 
   // Top bar
