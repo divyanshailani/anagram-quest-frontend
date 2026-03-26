@@ -96,8 +96,8 @@ export default function BankPanel({ score, bank, bankDecisions, gameResult, stat
           ...styles.statusDot,
           background: status === "playing" ? "var(--green)"
             : status === "finished" ? "var(--cyan)"
-            : status === "error" ? "var(--red)"
-            : "var(--text-dim)",
+              : status === "error" ? "var(--red)"
+                : "var(--text-dim)",
           boxShadow: status === "playing"
             ? "0 0 8px var(--green)"
             : "none",
