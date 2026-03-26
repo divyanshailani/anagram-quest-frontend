@@ -30,6 +30,7 @@ export function useMatchEngine() {
   // Match results
   const [levelResults, setLevelResults] = useState([]);
   const [matchResult, setMatchResult] = useState(null);
+  const [levelEndMeta, setLevelEndMeta] = useState(null); // { reason: "timeout" | "completed", winner: "human" | "ai" | "tie" | null }
 
   // Sound event
   const [soundEvent, setSoundEvent] = useState(null);
@@ -68,10 +69,11 @@ export function useMatchEngine() {
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Level timeout → advance ───
-  const handleLevelTimeoutAsync = useCallback(async () => {
+  const handleLevelTimeoutAsync = useCallback(async (reason = "timeout", winner = null) => {
     const id = matchIdRef.current;
     if (!id || isAdvancingRef.current) return;
     isAdvancingRef.current = true;
+    setLevelEndMeta({ reason, winner });
 
     setStatus("level_end");
 
@@ -81,8 +83,9 @@ export function useMatchEngine() {
       esRef.current = null;
     }
 
-    // Small pause for user to see results
-    await new Promise((r) => setTimeout(r, 3000));
+    // Quick transition on early completion; longer pause when timer expires.
+    const pauseMs = reason === "completed" ? 900 : 3000;
+    await new Promise((r) => setTimeout(r, pauseMs));
 
     try {
       const resp = await fetch(`${GAME_SERVER}/match/${id}/next-level`, { method: "POST" });
@@ -106,16 +109,16 @@ export function useMatchEngine() {
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Auto-advance if both find all words ───
+  // ─── Auto-advance when either side completes the level ───
   useEffect(() => {
     if (status !== "playing" || !currentLevel || isAdvancingRef.current) return;
 
-    if (
-      humanFound.length >= currentLevel.word_count &&
-      aiFound.length >= currentLevel.word_count
-    ) {
+    const humanDone = humanFound.length >= currentLevel.word_count;
+    const aiDone = aiFound.length >= currentLevel.word_count;
+    if (humanDone || aiDone) {
+      const winner = humanDone && aiDone ? "tie" : humanDone ? "human" : "ai";
       clearInterval(timerRef.current);
-      handleLevelTimeoutAsync();
+      handleLevelTimeoutAsync("completed", winner);
     }
   }, [humanFound.length, aiFound.length, currentLevel, status, handleLevelTimeoutAsync]);
 
@@ -137,6 +140,7 @@ export function useMatchEngine() {
     setAiFound([]);
     setAiThinking([]);
     setTimer(LEVEL_DURATION);
+    setLevelEndMeta(null);
     isAdvancingRef.current = false;
     setStatus("playing");
     setSoundEvent({ type: "levelUp", ts: Date.now() });
@@ -194,6 +198,7 @@ export function useMatchEngine() {
   // ─── Create match ───
   const createMatch = useCallback(async () => {
     isAdvancingRef.current = false;
+    setLevelEndMeta(null);
     setStatus("playing");
     setHumanScore(0);
     setAiScore(0);
@@ -277,6 +282,7 @@ export function useMatchEngine() {
     humanScore, humanFound, humanWrong,
     aiScore, aiFound, aiThinking,
     levelResults, matchResult, soundEvent,
+    levelEndMeta,
     createMatch, submitGuess, stopMatch,
   };
 }

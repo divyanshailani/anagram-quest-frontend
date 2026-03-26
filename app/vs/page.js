@@ -12,7 +12,7 @@ export default function VsPage() {
     matchId, status, currentLevel, timer,
     humanScore, humanFound, humanWrong,
     aiScore, aiFound, aiThinking,
-    levelResults, matchResult, soundEvent,
+    levelResults, matchResult, soundEvent, levelEndMeta,
     createMatch, submitGuess, stopMatch,
   } = useMatchEngine();
 
@@ -90,7 +90,7 @@ export default function VsPage() {
 
             {/* Word count */}
             <div style={styles.wordTarget}>
-              {currentLevel.word_count} words to find
+              You {humanFound.length}/{currentLevel.word_count} | AI {aiFound.length}/{currentLevel.word_count}
             </div>
           </div>
 
@@ -127,7 +127,15 @@ export default function VsPage() {
       {status === "level_end" && (
         <div style={styles.overlay}>
           <div style={styles.overlayCard}>
-            <h3 style={styles.overlayTitle}>⏱️ Time{"'"}s Up!</h3>
+            <h3 style={styles.overlayTitle}>
+              {levelEndMeta?.reason === "completed"
+                ? levelEndMeta?.winner === "human"
+                  ? "⚡ You Cleared The Level First!"
+                  : levelEndMeta?.winner === "ai"
+                    ? "⚡ AI Cleared The Level First!"
+                    : "⚡ Level Cleared!"
+                : "⏱️ Time's Up!"}
+            </h3>
             <div style={styles.overlayScores}>
               <div>
                 <div style={styles.overlayLabel}>YOU</div>

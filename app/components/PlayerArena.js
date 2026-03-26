@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 export default function PlayerArena({ onSubmitGuess, found, wrong, score, letters, disabled }) {
   const [input, setInput] = useState("");
   const [feedback, setFeedback] = useState(null); // { type, message }
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -16,21 +17,32 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const word = input.trim().toUpperCase();
-    if (!word || disabled) return;
+    if (isSubmitting || disabled) return;
 
-    const result = await onSubmitGuess(word);
-    setInput("");
+    // Read directly from the input DOM node to avoid missing the last keystroke
+    // when Enter is pressed very quickly after typing.
+    const liveValue = inputRef.current?.value ?? input;
+    const word = liveValue.trim().toUpperCase();
+    if (!word) return;
 
-    if (result) {
-      if (result.valid) {
-        setFeedback({ type: "correct", message: `+${result.reward}` });
-      } else if (result.reason === "already_found") {
-        setFeedback({ type: "info", message: "Already found!" });
-      } else {
-        setFeedback({ type: "wrong", message: "Not a valid word" });
+    setIsSubmitting(true);
+
+    try {
+      const result = await onSubmitGuess(word);
+      setInput("");
+
+      if (result) {
+        if (result.valid) {
+          setFeedback({ type: "correct", message: `+${result.reward}` });
+        } else if (result.reason === "already_found") {
+          setFeedback({ type: "info", message: "Already found!" });
+        } else {
+          setFeedback({ type: "wrong", message: "Not a valid word" });
+        }
+        setTimeout(() => setFeedback(null), 1500);
       }
-      setTimeout(() => setFeedback(null), 1500);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,7 +70,11 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
           autoComplete="off"
           spellCheck="false"
         />
-        <button type="submit" disabled={disabled || !input.trim()} style={styles.submitBtn}>
+        <button
+          type="submit"
+          disabled={disabled || isSubmitting || !input.trim()}
+          style={styles.submitBtn}
+        >
           →
         </button>
       </form>
