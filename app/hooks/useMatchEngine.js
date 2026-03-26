@@ -39,6 +39,7 @@ export function useMatchEngine() {
   const statusRef = useRef("idle");
   const timerRef = useRef(null);
   const esRef = useRef(null);
+  const isAdvancingRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { matchIdRef.current = matchId; }, [matchId]);
@@ -69,7 +70,8 @@ export function useMatchEngine() {
   // ─── Level timeout → advance ───
   const handleLevelTimeoutAsync = useCallback(async () => {
     const id = matchIdRef.current;
-    if (!id) return;
+    if (!id || isAdvancingRef.current) return;
+    isAdvancingRef.current = true;
 
     setStatus("level_end");
 
@@ -99,8 +101,23 @@ export function useMatchEngine() {
     } catch (err) {
       console.error("next-level error:", err);
       setStatus("error");
+    } finally {
+      isAdvancingRef.current = false;
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Auto-advance if both find all words ───
+  useEffect(() => {
+    if (status !== "playing" || !currentLevel || isAdvancingRef.current) return;
+
+    if (
+      humanFound.length >= currentLevel.word_count &&
+      aiFound.length >= currentLevel.word_count
+    ) {
+      clearInterval(timerRef.current);
+      handleLevelTimeoutAsync();
+    }
+  }, [humanFound.length, aiFound.length, currentLevel, status, handleLevelTimeoutAsync]);
 
   // ─── Start a level (pass matchId explicitly) ───
   const startLevelWithId = useCallback((id, levelData) => {
@@ -120,6 +137,7 @@ export function useMatchEngine() {
     setAiFound([]);
     setAiThinking([]);
     setTimer(LEVEL_DURATION);
+    isAdvancingRef.current = false;
     setStatus("playing");
     setSoundEvent({ type: "levelUp", ts: Date.now() });
 
@@ -175,6 +193,7 @@ export function useMatchEngine() {
 
   // ─── Create match ───
   const createMatch = useCallback(async () => {
+    isAdvancingRef.current = false;
     setStatus("playing");
     setHumanScore(0);
     setAiScore(0);
@@ -247,6 +266,7 @@ export function useMatchEngine() {
       esRef.current = null;
     }
     clearInterval(timerRef.current);
+    isAdvancingRef.current = false;
     setStatus("idle");
     setMatchId(null);
     matchIdRef.current = null;

@@ -32,7 +32,7 @@ export default function AIArena({ found, thinking, score }) {
         {found.map((g, i) => (
           <div key={`f-${i}`} style={styles.logLine}>
             <span style={{ color: "var(--green)" }}>
-              ✓ {g.word}
+              ✓ {"*".repeat(g.word.length)}
             </span>
             <span style={styles.rewardBadge}>+{g.reward}</span>
           </div>
@@ -44,7 +44,7 @@ export default function AIArena({ found, thinking, score }) {
       <div style={styles.wordList}>
         {found.map((g, i) => (
           <span key={i} style={styles.wordTag}>
-            {g.word}
+            {"*".repeat(g.word.length)}
           </span>
         ))}
       </div>

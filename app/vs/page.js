@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { useMatchEngine } from "../hooks/useMatchEngine";
 import { useSoundFX } from "../hooks/useSoundFX";
 import PlayerArena from "../components/PlayerArena";
@@ -40,7 +41,7 @@ export default function VsPage() {
     <div style={styles.page}>
       {/* Header */}
       <header style={styles.header}>
-        <a href="/" style={styles.backLink}>← Back</a>
+        <Link href="/" style={styles.backLink}>← Back</Link>
         <h1 style={styles.title}>⚔️ PLAYER vs AI</h1>
         {currentLevel && (
           <span style={styles.levelBadge}>LEVEL {currentLevel.level}/5</span>
@@ -189,7 +190,7 @@ export default function VsPage() {
               <button onClick={createMatch} style={styles.startBtn}>
                 ⚔️ Rematch
               </button>
-              <a href="/" style={styles.backBtn}>← Home</a>
+              <Link href="/" style={styles.backBtn}>← Home</Link>
             </div>
           </div>
         </div>
