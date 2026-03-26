@@ -14,52 +14,63 @@ const LEVEL_DURATION = 60; // seconds per level
 export function useMatchEngine() {
   const [matchId, setMatchId] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | playing | level_end | finished | error
-  const [currentLevel, setCurrentLevel] = useState(null); // { level, letters, word_count }
+  const [currentLevel, setCurrentLevel] = useState(null);
   const [timer, setTimer] = useState(LEVEL_DURATION);
 
   // Human state
   const [humanScore, setHumanScore] = useState(0);
-  const [humanFound, setHumanFound] = useState([]);   // [{word, reward, first_try}]
-  const [humanWrong, setHumanWrong] = useState([]);    // [{word, reason}]
+  const [humanFound, setHumanFound] = useState([]);
+  const [humanWrong, setHumanWrong] = useState([]);
 
   // AI state
   const [aiScore, setAiScore] = useState(0);
-  const [aiFound, setAiFound] = useState([]);          // [{word, reward, first_try}]
-  const [aiThinking, setAiThinking] = useState([]);    // terminal log entries
+  const [aiFound, setAiFound] = useState([]);
+  const [aiThinking, setAiThinking] = useState([]);
 
   // Match results
   const [levelResults, setLevelResults] = useState([]);
   const [matchResult, setMatchResult] = useState(null);
 
-  // Sound event (same pattern as useGameStream)
+  // Sound event
   const [soundEvent, setSoundEvent] = useState(null);
 
+  // Refs for async access (avoid stale closures)
+  const matchIdRef = useRef(null);
+  const statusRef = useRef("idle");
   const timerRef = useRef(null);
   const esRef = useRef(null);
 
+  // Keep refs in sync
+  useEffect(() => { matchIdRef.current = matchId; }, [matchId]);
+  useEffect(() => { statusRef.current = status; }, [status]);
+
   // ─── Timer ───
   useEffect(() => {
-    if (status === "playing" && timer > 0) {
-      timerRef.current = setInterval(() => {
-        setTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current);
-            handleLevelTimeout();
-            return 0;
-          }
-          if (prev <= 10) {
-            setSoundEvent({ type: "tick", ts: Date.now() });
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timerRef.current);
-    }
-  }, [status, timer > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (status !== "playing") return;
+
+    timerRef.current = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          // Trigger level timeout
+          handleLevelTimeoutAsync();
+          return 0;
+        }
+        if (prev <= 10) {
+          setSoundEvent({ type: "tick", ts: Date.now() });
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerRef.current);
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Level timeout → advance ───
-  const handleLevelTimeout = useCallback(async () => {
-    if (!matchId) return;
+  const handleLevelTimeoutAsync = useCallback(async () => {
+    const id = matchIdRef.current;
+    if (!id) return;
+
     setStatus("level_end");
 
     // Close AI stream
@@ -71,9 +82,9 @@ export function useMatchEngine() {
     // Small pause for user to see results
     await new Promise((r) => setTimeout(r, 3000));
 
-    // Advance to next level
     try {
-      const resp = await fetch(`${GAME_SERVER}/match/${matchId}/next-level`, { method: "POST" });
+      const resp = await fetch(`${GAME_SERVER}/match/${id}/next-level`, { method: "POST" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
       if (data.game_over) {
@@ -83,15 +94,22 @@ export function useMatchEngine() {
         setSoundEvent({ type: "win", ts: Date.now() });
       } else {
         setLevelResults(data.level_results || []);
-        startLevel(data);
+        startLevelWithId(id, data);
       }
     } catch (err) {
+      console.error("next-level error:", err);
       setStatus("error");
     }
-  }, [matchId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Start a level ───
-  const startLevel = useCallback((levelData) => {
+  // ─── Start a level (pass matchId explicitly) ───
+  const startLevelWithId = useCallback((id, levelData) => {
+    if (!levelData.letters) {
+      console.error("No letters in level data:", levelData);
+      setStatus("error");
+      return;
+    }
+
     setCurrentLevel({
       level: levelData.level,
       letters: levelData.letters,
@@ -105,47 +123,55 @@ export function useMatchEngine() {
     setStatus("playing");
     setSoundEvent({ type: "levelUp", ts: Date.now() });
 
-    // Connect AI SSE stream for this level
-    connectAIStream(levelData.level);
-  }, [matchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Connect AI SSE stream — pass id explicitly
+    connectAIStreamWithId(id);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Connect AI drip-feed SSE ───
-  const connectAIStream = useCallback((level) => {
+  // ─── Connect AI drip-feed SSE (pass matchId explicitly) ───
+  const connectAIStreamWithId = useCallback((id) => {
     if (esRef.current) esRef.current.close();
 
-    const es = new EventSource(`${GAME_SERVER}/match/${matchId}/ai-stream`);
+    const url = `${GAME_SERVER}/match/${id}/ai-stream`;
+    const es = new EventSource(url);
     esRef.current = es;
 
     es.addEventListener("ai_thinking", (e) => {
-      const data = JSON.parse(e.data);
-      setAiThinking((prev) => [...prev, { ...data, ts: Date.now() }]);
+      try {
+        const data = JSON.parse(e.data);
+        setAiThinking((prev) => [...prev, { ...data, ts: Date.now() }]);
+      } catch {}
     });
 
     es.addEventListener("ai_guess", (e) => {
-      const data = JSON.parse(e.data);
-      if (data.correct) {
-        setAiFound((prev) => [...prev, data]);
-        setAiScore(data.ai_score);
-        setSoundEvent({ type: "wrong", ts: Date.now() }); // "wrong" from human perspective
-      }
+      try {
+        const data = JSON.parse(e.data);
+        if (data.correct) {
+          setAiFound((prev) => [...prev, data]);
+          setAiScore(data.ai_score);
+        }
+      } catch {}
     });
 
     es.addEventListener("ai_level_done", (e) => {
-      const data = JSON.parse(e.data);
-      setAiScore(data.ai_score);
+      try {
+        const data = JSON.parse(e.data);
+        setAiScore(data.ai_score);
+      } catch {}
     });
 
     es.addEventListener("ai_error", (e) => {
-      const data = JSON.parse(e.data);
-      setAiThinking((prev) => [...prev, {
-        text: `[ERROR] ${data.message}`, phase: "error", ts: Date.now(),
-      }]);
+      try {
+        const data = JSON.parse(e.data);
+        setAiThinking((prev) => [...prev, {
+          text: `[ERROR] ${data.message}`, phase: "error", ts: Date.now(),
+        }]);
+      } catch {}
     });
 
     es.onerror = () => {
       // Don't crash — AI stream may end naturally
     };
-  }, [matchId]);
+  }, []);
 
   // ─── Create match ───
   const createMatch = useCallback(async () => {
@@ -158,26 +184,38 @@ export function useMatchEngine() {
 
     try {
       const resp = await fetch(`${GAME_SERVER}/match/create`, { method: "POST" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      setMatchId(data.match_id);
 
-      // Start level 1
-      startLevel(data);
+      if (!data.match_id || !data.letters) {
+        throw new Error("Invalid match response");
+      }
+
+      // Store matchId in both state and ref
+      const id = data.match_id;
+      setMatchId(id);
+      matchIdRef.current = id;
+
+      // Start level 1 — pass id explicitly to avoid stale closure
+      startLevelWithId(id, data);
     } catch (err) {
+      console.error("createMatch error:", err);
       setStatus("error");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [startLevelWithId]);
 
   // ─── Submit human guess ───
   const submitGuess = useCallback(async (word) => {
-    if (!matchId || status !== "playing") return null;
+    const id = matchIdRef.current;
+    if (!id || statusRef.current !== "playing") return null;
 
     try {
-      const resp = await fetch(`${GAME_SERVER}/match/${matchId}/guess`, {
+      const resp = await fetch(`${GAME_SERVER}/match/${id}/guess`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ word }),
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
       if (data.valid) {
@@ -185,7 +223,6 @@ export function useMatchEngine() {
         setHumanScore(data.human_score);
         setSoundEvent({ type: "correct", ts: Date.now() });
 
-        // Check if all words found
         if (data.all_found) {
           setSoundEvent({ type: "bankCoin", ts: Date.now() });
         }
@@ -198,9 +235,10 @@ export function useMatchEngine() {
 
       return data;
     } catch (err) {
+      console.error("submitGuess error:", err);
       return null;
     }
-  }, [matchId, status]);
+  }, []);
 
   // ─── Stop match ───
   const stopMatch = useCallback(() => {
@@ -210,6 +248,8 @@ export function useMatchEngine() {
     }
     clearInterval(timerRef.current);
     setStatus("idle");
+    setMatchId(null);
+    matchIdRef.current = null;
   }, []);
 
   return {
