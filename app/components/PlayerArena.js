@@ -47,6 +47,13 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
     }
   };
 
+  const handleInputKeyDown = (e) => {
+    if (e.key !== "Enter" || disabled || e.nativeEvent.isComposing) return;
+    // Force native form submit path so fast Enter presses never get dropped.
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -61,6 +68,7 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value.toUpperCase())}
+          onKeyDown={handleInputKeyDown}
           placeholder={disabled ? "Time's up!" : "Type a word..."}
           disabled={disabled}
           style={{
@@ -73,7 +81,7 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
         />
         <button
           type="submit"
-          disabled={disabled || !input.trim()}
+          disabled={disabled}
           style={styles.submitBtn}
         >
           →

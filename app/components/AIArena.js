@@ -9,6 +9,15 @@ import { useRef, useEffect } from "react";
 export default function AIArena({ found, thinking, score }) {
   const logRef = useRef(null);
 
+  const phaseColor = (phase) => {
+    if (phase === "analyze") return "var(--cyan)";
+    if (phase === "solve") return "var(--purple)";
+    if (phase === "result") return "var(--green)";
+    if (phase === "banking") return "var(--amber)";
+    if (phase === "error") return "var(--red)";
+    return "var(--text-secondary)";
+  };
+
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -23,10 +32,17 @@ export default function AIArena({ found, thinking, score }) {
       </div>
 
       {/* AI Thinking Terminal */}
-      <div ref={logRef} style={styles.terminal}>
+      <div style={styles.terminalWrap}>
+        <div style={styles.terminalHeader}>
+          <span style={styles.dot} />
+          <span style={styles.dot2} />
+          <span style={styles.dot3} />
+          <span style={styles.terminalTitle}>AI_THINKING.log</span>
+        </div>
+        <div ref={logRef} style={styles.terminal}>
         {thinking.map((entry, i) => (
           <div key={`t-${i}`} style={styles.logLine}>
-            <span style={{ color: "var(--text-dim)" }}>{entry.text}</span>
+            <span style={{ color: phaseColor(entry.phase) }}>{entry.text}</span>
           </div>
         ))}
         {found.map((g, i) => (
@@ -38,6 +54,7 @@ export default function AIArena({ found, thinking, score }) {
           </div>
         ))}
         <div style={styles.cursor}>█</div>
+      </div>
       </div>
 
       {/* Found word pills */}
@@ -89,9 +106,10 @@ const styles = {
   },
   terminal: {
     flex: 1,
-    background: "rgba(0, 0, 0, 0.4)",
-    border: "1px solid rgba(255,255,255,0.06)",
-    borderRadius: "var(--radius-md)",
+    background: "linear-gradient(180deg, rgba(2, 8, 24, 0.86), rgba(2, 6, 20, 0.72))",
+    border: "1px solid rgba(6, 214, 160, 0.14)",
+    borderTop: "none",
+    borderRadius: "0 0 var(--radius-md) var(--radius-md)",
     padding: "12px",
     fontFamily: "var(--font-mono)",
     fontSize: "12px",
@@ -99,6 +117,44 @@ const styles = {
     overflowY: "auto",
     maxHeight: "200px",
     minHeight: "120px",
+  },
+  terminalWrap: {
+    borderRadius: "var(--radius-md)",
+    overflow: "hidden",
+  },
+  terminalHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "8px 10px",
+    background: "rgba(0,0,0,0.35)",
+    border: "1px solid rgba(6, 214, 160, 0.14)",
+    borderBottom: "none",
+  },
+  dot: {
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    background: "#f87171",
+  },
+  dot2: {
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    background: "#fbbf24",
+  },
+  dot3: {
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    background: "#34d399",
+  },
+  terminalTitle: {
+    marginLeft: "8px",
+    fontFamily: "var(--font-mono)",
+    fontSize: "11px",
+    color: "var(--text-dim)",
+    letterSpacing: "0.8px",
   },
   logLine: {
     display: "flex",

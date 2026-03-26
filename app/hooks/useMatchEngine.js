@@ -19,13 +19,17 @@ export function useMatchEngine() {
 
   // Human state
   const [humanScore, setHumanScore] = useState(0);
+  const [humanBank, setHumanBank] = useState(0);
   const [humanFound, setHumanFound] = useState([]);
   const [humanWrong, setHumanWrong] = useState([]);
 
   // AI state
   const [aiScore, setAiScore] = useState(0);
+  const [aiBank, setAiBank] = useState(0);
   const [aiFound, setAiFound] = useState([]);
   const [aiThinking, setAiThinking] = useState([]);
+  const [bankFeed, setBankFeed] = useState([]);
+  const [bankBusy, setBankBusy] = useState(false);
 
   // Match results
   const [levelResults, setLevelResults] = useState([]);
@@ -100,10 +104,16 @@ export function useMatchEngine() {
       if (data.game_over) {
         setMatchResult(data);
         setLevelResults(data.level_results || []);
+        setHumanBank(data.human_bank ?? 0);
+        setAiBank(data.ai_bank ?? 0);
+        setBankFeed([...(data.human_bank_log || []), ...(data.ai_bank_log || [])]);
         setStatus("finished");
         setSoundEvent({ type: "win", ts: Date.now() });
       } else {
         setLevelResults(data.level_results || []);
+        setHumanBank(data.human_bank ?? 0);
+        setAiBank(data.ai_bank ?? 0);
+        setBankFeed([...(data.human_bank_log || []), ...(data.ai_bank_log || [])]);
         startLevelWithId(id, data);
       }
     } catch (err) {
@@ -140,6 +150,8 @@ export function useMatchEngine() {
       letters: levelData.letters,
       word_count: levelData.word_count,
     });
+    setHumanBank(levelData.human_bank ?? 0);
+    setAiBank(levelData.ai_bank ?? 0);
     setHumanFound([]);
     setHumanWrong([]);
     setAiFound([]);
@@ -200,6 +212,13 @@ export function useMatchEngine() {
             ts: Date.now(),
           }]);
         }
+        if (typeof data.ai_bank === "number") {
+          setAiBank(data.ai_bank);
+        }
+        if (data.bank_event) {
+          setBankFeed((prev) => [...prev.slice(-7), data.bank_event]);
+          setSoundEvent({ type: "bankCoin", ts: Date.now() });
+        }
       } catch {}
     });
 
@@ -207,6 +226,12 @@ export function useMatchEngine() {
       try {
         const data = JSON.parse(e.data);
         setAiScore(data.ai_score);
+        if (typeof data.ai_bank === "number") {
+          setAiBank(data.ai_bank);
+        }
+        if (Array.isArray(data.ai_bank_log) && data.ai_bank_log.length > 0) {
+          setBankFeed((prev) => [...prev.slice(-4), ...data.ai_bank_log.slice(-4)]);
+        }
       } catch {}
     });
 
@@ -251,7 +276,11 @@ export function useMatchEngine() {
     setLevelEndMeta(null);
     setStatus("playing");
     setHumanScore(0);
+    setHumanBank(0);
     setAiScore(0);
+    setAiBank(0);
+    setBankFeed([]);
+    setBankBusy(false);
     setLevelResults([]);
     setMatchResult(null);
     setSoundEvent({ type: "gameStart", ts: Date.now() });
@@ -291,14 +320,20 @@ export function useMatchEngine() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      if (typeof data.human_bank === "number") {
+        setHumanBank(data.human_bank);
+      }
 
       if (data.valid) {
         setHumanFound((prev) => [...prev, data]);
         setHumanScore(data.human_score);
         setSoundEvent({ type: "correct", ts: Date.now() });
 
-        if (data.all_found) {
+        if (data.bank_awarded || data.all_found) {
           setSoundEvent({ type: "bankCoin", ts: Date.now() });
+        }
+        if (data.bank_event) {
+          setBankFeed((prev) => [...prev.slice(-7), data.bank_event]);
         }
       } else {
         setHumanWrong((prev) => [...prev, { word: data.word, reason: data.reason }]);
@@ -314,6 +349,66 @@ export function useMatchEngine() {
     }
   }, []);
 
+  const useBankBoost = useCallback(async () => {
+    const id = matchIdRef.current;
+    if (!id || statusRef.current !== "playing" || bankBusy) return null;
+    setBankBusy(true);
+    try {
+      const resp = await fetch(`${GAME_SERVER}/match/${id}/bank/boost`, { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.detail || `HTTP ${resp.status}`);
+      setHumanBank(data.human_bank ?? 0);
+      setHumanScore(data.human_score ?? humanScore);
+      if (data.bank_event) {
+        setBankFeed((prev) => [...prev.slice(-7), data.bank_event]);
+      }
+      setSoundEvent({ type: "bankCoin", ts: Date.now() });
+      return data;
+    } catch (err) {
+      console.error("bank/boost error:", err);
+      return null;
+    } finally {
+      setBankBusy(false);
+    }
+  }, [bankBusy, humanScore]);
+
+  const useBankRecover = useCallback(async () => {
+    const id = matchIdRef.current;
+    if (!id || statusRef.current !== "playing" || bankBusy) return null;
+    setBankBusy(true);
+    try {
+      const resp = await fetch(`${GAME_SERVER}/match/${id}/bank/recover`, { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.detail || `HTTP ${resp.status}`);
+      setHumanBank(data.human_bank ?? 0);
+      setHumanScore(data.human_score ?? humanScore);
+      if (data.bank_event) {
+        setBankFeed((prev) => [...prev.slice(-7), data.bank_event]);
+      }
+      if (data.success && data.target_word) {
+        setLevelResults((prev) =>
+          prev.map((row) => {
+            if (!Array.isArray(row.human_missed) || !row.human_missed.includes(data.target_word)) {
+              return row;
+            }
+            const updatedMissed = row.human_missed.filter((word) => word !== data.target_word);
+            return {
+              ...row,
+              human_missed: updatedMissed,
+            };
+          }),
+        );
+      }
+      setSoundEvent({ type: data.success ? "correct" : "wrong", ts: Date.now() });
+      return data;
+    } catch (err) {
+      console.error("bank/recover error:", err);
+      return null;
+    } finally {
+      setBankBusy(false);
+    }
+  }, [bankBusy, humanScore]);
+
   // ─── Stop match ───
   const stopMatch = useCallback(() => {
     if (esRef.current) {
@@ -327,16 +422,20 @@ export function useMatchEngine() {
     clearInterval(timerRef.current);
     isAdvancingRef.current = false;
     setStatus("idle");
+    setBankBusy(false);
+    setHumanBank(0);
+    setAiBank(0);
+    setBankFeed([]);
     setMatchId(null);
     matchIdRef.current = null;
   }, []);
 
   return {
     matchId, status, currentLevel, timer,
-    humanScore, humanFound, humanWrong,
-    aiScore, aiFound, aiThinking,
+    humanScore, humanBank, humanFound, humanWrong,
+    aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent,
-    levelEndMeta,
-    createMatch, submitGuess, stopMatch,
+    levelEndMeta, bankFeed, bankBusy,
+    createMatch, submitGuess, useBankBoost, useBankRecover, stopMatch,
   };
 }

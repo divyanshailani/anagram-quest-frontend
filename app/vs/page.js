@@ -6,14 +6,16 @@ import { useMatchEngine } from "../hooks/useMatchEngine";
 import { useSoundFX } from "../hooks/useSoundFX";
 import PlayerArena from "../components/PlayerArena";
 import AIArena from "../components/AIArena";
+import MatchBankPanel from "../components/MatchBankPanel";
 
 export default function VsPage() {
   const {
     matchId, status, currentLevel, timer,
-    humanScore, humanFound, humanWrong,
-    aiScore, aiFound, aiThinking,
+    humanScore, humanBank, humanFound, humanWrong,
+    aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent, levelEndMeta,
-    createMatch, submitGuess, stopMatch,
+    bankFeed, bankBusy,
+    createMatch, submitGuess, useBankBoost, useBankRecover, stopMatch,
   } = useMatchEngine();
 
   const sfx = useSoundFX();
@@ -36,13 +38,21 @@ export default function VsPage() {
   const timerProgress = timer / 60;
   const circumference = 2 * Math.PI * 40;
   const dashOffset = circumference * (1 - timerProgress);
+  const canRecover = levelResults.some((row) => (row.human_missed?.length || 0) > 0);
 
   return (
     <div style={styles.page}>
       {/* Header */}
       <header style={styles.header}>
-        <Link href="/" style={styles.backLink}>← Back</Link>
-        <h1 style={styles.title}>⚔️ PLAYER vs AI</h1>
+        <div style={styles.headerLeft}>
+          <Link href="/" style={styles.backLink}>← Back</Link>
+          <h1 style={styles.title}>⚔️ PLAYER vs AI</h1>
+        </div>
+        <div style={styles.headerBadges}>
+          <span style={styles.techBadge}>Realtime PvAI</span>
+          <span style={styles.techBadge}>Speed Banking</span>
+          <span style={styles.techBadge}>SSE Sync</span>
+        </div>
         {currentLevel && (
           <span style={styles.levelBadge}>LEVEL {currentLevel.level}/5</span>
         )}
@@ -120,6 +130,17 @@ export default function VsPage() {
             <span style={{ color: "var(--text-dim)" }}>|</span>
             <span style={{ color: "var(--red)" }}>AI: {aiScore}</span>
           </div>
+
+          <MatchBankPanel
+            humanBank={humanBank}
+            aiBank={aiBank}
+            bankFeed={bankFeed}
+            currentLevel={currentLevel}
+            canRecover={canRecover}
+            bankBusy={bankBusy}
+            onBoost={useBankBoost}
+            onRecover={useBankRecover}
+          />
         </>
       )}
 
@@ -217,7 +238,7 @@ export default function VsPage() {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "var(--bg-deep)",
+    background: "radial-gradient(circle at 20% 0%, rgba(6,214,160,0.08), transparent 45%), var(--bg-deep)",
     padding: "20px",
     display: "flex",
     flexDirection: "column",
@@ -227,7 +248,34 @@ const styles = {
   header: {
     display: "flex",
     alignItems: "center",
-    gap: "16px",
+    justifyContent: "space-between",
+    gap: "14px",
+    padding: "12px 16px",
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-lg)",
+    backdropFilter: "blur(12px)",
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  headerBadges: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  techBadge: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "10px",
+    color: "var(--text-dim)",
+    padding: "3px 10px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid var(--border)",
+    letterSpacing: "0.5px",
   },
   backLink: {
     fontFamily: "var(--font-mono)",
@@ -241,7 +289,6 @@ const styles = {
     fontWeight: 800,
     color: "var(--text-primary)",
     letterSpacing: "2px",
-    flex: 1,
   },
   levelBadge: {
     fontFamily: "var(--font-mono)",
@@ -298,6 +345,11 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: "24px",
+    padding: "12px 16px",
+    borderRadius: "var(--radius-md)",
+    border: "1px solid rgba(148, 163, 184, 0.14)",
+    background: "rgba(10, 18, 36, 0.55)",
+    backdropFilter: "blur(8px)",
   },
   letterRow: {
     display: "flex",
@@ -339,8 +391,12 @@ const styles = {
   wordTarget: {
     fontFamily: "var(--font-mono)",
     fontSize: "12px",
-    color: "var(--text-dim)",
+    color: "var(--text-secondary)",
     letterSpacing: "1px",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid rgba(148, 163, 184, 0.14)",
+    background: "rgba(255,255,255,0.02)",
   },
 
   // Split screen
@@ -350,6 +406,7 @@ const styles = {
     gap: "12px",
     flex: 1,
     minHeight: 0,
+    height: "min(64vh, 760px)",
   },
   divider: {
     width: "2px",
@@ -378,6 +435,10 @@ const styles = {
     fontSize: "14px",
     fontWeight: 700,
     letterSpacing: "1px",
+    padding: "10px 14px",
+    borderRadius: "8px",
+    background: "rgba(255,255,255,0.02)",
+    border: "1px solid rgba(148, 163, 184, 0.12)",
   },
 
   // Overlays
