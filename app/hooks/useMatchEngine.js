@@ -308,7 +308,7 @@ export function useMatchEngine() {
   }, [startLevelWithId]);
 
   // ─── Submit human guess ───
-  const submitGuess = useCallback(async (word) => {
+  const submitGuess = useCallback(async (word, submittedLevel = null) => {
     const id = matchIdRef.current;
     if (!id || statusRef.current !== "playing") return null;
 
@@ -316,7 +316,7 @@ export function useMatchEngine() {
       const resp = await fetch(`${GAME_SERVER}/match/${id}/guess`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word }),
+        body: JSON.stringify({ word, level: submittedLevel }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -336,8 +336,10 @@ export function useMatchEngine() {
           setBankFeed((prev) => [...prev.slice(-7), data.bank_event]);
         }
       } else {
-        setHumanWrong((prev) => [...prev, { word: data.word, reason: data.reason }]);
-        if (data.reason !== "already_found") {
+        if (data.reason !== "stale_level") {
+          setHumanWrong((prev) => [...prev, { word: data.word, reason: data.reason }]);
+        }
+        if (data.reason !== "already_found" && data.reason !== "stale_level") {
           setSoundEvent({ type: "wrong", ts: Date.now() });
         }
       }

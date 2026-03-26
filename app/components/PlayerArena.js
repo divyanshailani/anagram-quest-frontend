@@ -31,12 +31,14 @@ export default function PlayerArena({ onSubmitGuess, found, wrong, score, letter
     pendingWordsRef.current.add(word);
 
     try {
-      const result = await onSubmitGuess(word);
+      const result = await onSubmitGuess(word, letters?.level ?? null);
       if (result) {
         if (result.valid) {
           setFeedback({ type: "correct", message: `+${result.reward}` });
         } else if (result.reason === "already_found") {
           setFeedback({ type: "info", message: "Already found!" });
+        } else if (result.reason === "stale_level") {
+          setFeedback({ type: "info", message: "Level changed. Try again." });
         } else {
           setFeedback({ type: "wrong", message: "Not a valid word" });
         }
