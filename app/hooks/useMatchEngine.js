@@ -4,6 +4,12 @@ import { useState, useCallback, useRef, useEffect } from "react";
 
 const GAME_SERVER = process.env.NEXT_PUBLIC_GAME_SERVER || "http://127.0.0.1:8000";
 const LEVEL_DURATION = 60; // seconds per level
+const DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+
+function normalizeDifficulty(value) {
+  const parsed = String(value || "medium").trim().toLowerCase();
+  return DIFFICULTIES.has(parsed) ? parsed : "medium";
+}
 
 /**
  * useMatchEngine — Hook for Player vs AI mode
@@ -17,6 +23,7 @@ export function useMatchEngine() {
   const [currentLevel, setCurrentLevel] = useState(null);
   const [timer, setTimer] = useState(LEVEL_DURATION);
   const [isCreating, setIsCreating] = useState(false);
+  const [matchDifficulty, setMatchDifficulty] = useState("medium");
 
   // Human state
   const [humanScore, setHumanScore] = useState(0);
@@ -269,10 +276,11 @@ export function useMatchEngine() {
   }, []);
 
   // ─── Create match ───
-  const createMatch = useCallback(async () => {
+  const createMatch = useCallback(async (requestedDifficulty = matchDifficulty) => {
     if (createInFlightRef.current) return;
     createInFlightRef.current = true;
     setIsCreating(true);
+    const chosenDifficulty = normalizeDifficulty(requestedDifficulty);
 
     isAdvancingRef.current = false;
     clearInterval(timerRef.current);
@@ -311,7 +319,11 @@ export function useMatchEngine() {
       // One lightweight retry smooths transient network blips on rematch/start.
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          const resp = await fetch(`${GAME_SERVER}/match/create`, { method: "POST" });
+          const resp = await fetch(`${GAME_SERVER}/match/create`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ difficulty: chosenDifficulty }),
+          });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const payload = await resp.json();
           if (!payload.match_id || !payload.letters) {
@@ -334,6 +346,7 @@ export function useMatchEngine() {
       // Store matchId in both state and ref
       const id = data.match_id;
       setMatchId(id);
+      setMatchDifficulty(normalizeDifficulty(data.difficulty || chosenDifficulty));
       matchIdRef.current = id;
 
       // Start level 1 — pass id explicitly to avoid stale closure
@@ -345,7 +358,7 @@ export function useMatchEngine() {
       setIsCreating(false);
       createInFlightRef.current = false;
     }
-  }, [startLevelWithId]);
+  }, [startLevelWithId, matchDifficulty]);
 
   // ─── Submit human guess ───
   const submitGuess = useCallback(async (word, submittedLevel = null) => {
@@ -481,6 +494,7 @@ export function useMatchEngine() {
 
   return {
     matchId, status, currentLevel, timer, isCreating,
+    matchDifficulty,
     humanScore, humanBank, humanFound, humanWrong,
     aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent,

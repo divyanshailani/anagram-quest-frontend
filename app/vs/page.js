@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMatchEngine } from "../hooks/useMatchEngine";
 import { useSoundFX } from "../hooks/useSoundFX";
@@ -11,15 +11,27 @@ import MatchBankPanel from "../components/MatchBankPanel";
 export default function VsPage() {
   const {
     matchId, status, currentLevel, timer, isCreating,
+    matchDifficulty,
     humanScore, humanBank, humanFound, humanWrong,
     aiScore, aiBank, aiFound, aiThinking,
     levelResults, matchResult, soundEvent, levelEndMeta,
     bankFeed, bankBusy,
     createMatch, submitGuess, useBankBoost, useBankRecover, stopMatch,
   } = useMatchEngine();
+  const [selectedDifficulty, setSelectedDifficulty] = useState("medium");
 
   const sfx = useSoundFX();
   const prevSoundRef = useRef(null);
+  const difficultyLabel = {
+    easy: "Easy",
+    medium: "Medium",
+    hard: "Hard",
+  };
+  const difficultyHint = {
+    easy: "Easy: AI is slower, intentionally misses some valid words, and plays safer banking.",
+    medium: "Medium: Balanced challenge with moderate AI pace and normal banking logic.",
+    hard: "Hard: Fastest AI pace with full solving pressure and optimal banking behavior.",
+  };
 
   // Play sound events
   useEffect(() => {
@@ -52,6 +64,9 @@ export default function VsPage() {
           <span style={styles.techBadge}>Realtime PvAI</span>
           <span style={styles.techBadge}>Speed Banking</span>
           <span style={styles.techBadge}>SSE Sync</span>
+          <span style={styles.difficultyBadge}>
+            Difficulty: {difficultyLabel[matchDifficulty] || "Medium"}
+          </span>
         </div>
         {currentLevel && (
           <span style={styles.levelBadge}>LEVEL {currentLevel.level}/5</span>
@@ -64,7 +79,25 @@ export default function VsPage() {
           <p style={styles.subText}>
             You and the AI get the same scrambled letters. Find as many words as you can in 60 seconds per level!
           </p>
-          <button onClick={createMatch} style={styles.startBtn}>
+          <div style={styles.difficultyPicker}>
+            {["easy", "medium", "hard"].map((level) => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => setSelectedDifficulty(level)}
+                style={{
+                  ...styles.diffBtn,
+                  ...(selectedDifficulty === level ? styles.diffBtnActive : {}),
+                }}
+              >
+                {difficultyLabel[level]}
+              </button>
+            ))}
+          </div>
+          <p style={styles.difficultyHint}>
+            {difficultyHint[selectedDifficulty]}
+          </p>
+          <button onClick={() => createMatch(selectedDifficulty)} style={styles.startBtn}>
             ⚔️ Start Match
           </button>
         </div>
@@ -229,7 +262,7 @@ export default function VsPage() {
 
             <div style={styles.overlayButtons}>
               <button
-                onClick={createMatch}
+                onClick={() => createMatch(selectedDifficulty)}
                 style={isCreating ? { ...styles.startBtn, ...styles.disabledBtn } : styles.startBtn}
                 disabled={isCreating}
               >
@@ -245,7 +278,7 @@ export default function VsPage() {
         <div style={styles.startScreen}>
           <h2 style={{ ...styles.heroText, color: "var(--red)" }}>Connection Error</h2>
           <button
-            onClick={createMatch}
+            onClick={() => createMatch(selectedDifficulty)}
             style={isCreating ? { ...styles.startBtn, ...styles.disabledBtn } : styles.startBtn}
             disabled={isCreating}
           >
@@ -299,6 +332,16 @@ const styles = {
     border: "1px solid var(--border)",
     letterSpacing: "0.5px",
   },
+  difficultyBadge: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "10px",
+    color: "var(--amber)",
+    padding: "3px 10px",
+    borderRadius: "999px",
+    background: "rgba(251, 191, 36, 0.1)",
+    border: "1px solid rgba(251, 191, 36, 0.35)",
+    letterSpacing: "0.6px",
+  },
   backLink: {
     fontFamily: "var(--font-mono)",
     fontSize: "13px",
@@ -347,6 +390,41 @@ const styles = {
     textAlign: "center",
     maxWidth: "420px",
     lineHeight: 1.6,
+  },
+  difficultyPicker: {
+    display: "flex",
+    gap: "8px",
+    background: "rgba(255,255,255,0.02)",
+    border: "1px solid var(--border)",
+    borderRadius: "10px",
+    padding: "6px",
+  },
+  difficultyHint: {
+    margin: 0,
+    maxWidth: "560px",
+    textAlign: "center",
+    fontFamily: "var(--font-body)",
+    fontSize: "13px",
+    color: "var(--text-dim)",
+    lineHeight: 1.5,
+  },
+  diffBtn: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "13px",
+    fontWeight: 700,
+    letterSpacing: "0.6px",
+    color: "var(--text-dim)",
+    background: "transparent",
+    border: "1px solid transparent",
+    borderRadius: "8px",
+    padding: "8px 14px",
+    cursor: "pointer",
+  },
+  diffBtnActive: {
+    color: "var(--text-primary)",
+    border: "1px solid rgba(6, 214, 160, 0.42)",
+    background: "rgba(6, 214, 160, 0.12)",
+    boxShadow: "0 0 14px rgba(6, 214, 160, 0.2)",
   },
   startBtn: {
     fontFamily: "var(--font-mono)",
