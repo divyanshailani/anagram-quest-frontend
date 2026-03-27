@@ -55,6 +55,7 @@ export function useMatchEngine() {
   const aiReconnectTimerRef = useRef(null);
   const isAdvancingRef = useRef(false);
   const createInFlightRef = useRef(false);
+  const aiLevelDoneRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { matchIdRef.current = matchId; }, [matchId]);
@@ -169,6 +170,7 @@ export function useMatchEngine() {
       phase: "boot",
       ts: Date.now(),
     }]);
+    aiLevelDoneRef.current = false;
     setTimer(LEVEL_DURATION);
     setLevelEndMeta(null);
     isAdvancingRef.current = false;
@@ -235,11 +237,18 @@ export function useMatchEngine() {
       try {
         const data = JSON.parse(e.data);
         setAiScore(data.ai_score);
+        aiLevelDoneRef.current = true;
         if (typeof data.ai_bank === "number") {
           setAiBank(data.ai_bank);
         }
         if (Array.isArray(data.ai_bank_log) && data.ai_bank_log.length > 0) {
           setBankFeed((prev) => [...prev.slice(-4), ...data.ai_bank_log.slice(-4)]);
+        }
+
+        // AI has finished this level's run: close cleanly and avoid reconnect noise.
+        if (esRef.current === es) {
+          es.close();
+          esRef.current = null;
         }
       } catch {}
     });
@@ -257,6 +266,11 @@ export function useMatchEngine() {
       // Manual reconnect gives us predictable recovery + UI signal.
       if (statusRef.current !== "playing") return;
       if (esRef.current !== es) return;
+      if (aiLevelDoneRef.current) {
+        es.close();
+        esRef.current = null;
+        return;
+      }
 
       es.close();
       esRef.current = null;
